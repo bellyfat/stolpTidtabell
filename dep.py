@@ -128,33 +128,28 @@ while 1==1:
 	except:
 	  weekday = ''
 	
+	noshow = 1
 	if date == '' and  weekday == '':
 	  noshow = 1
 	else:
 	  if date == '2':
 	    noshow = 1
 	  elif date == '1':
-	    outtrip = {}
-	    outtrip['direction'] = trip['headSign']
-	    outtrip['no'] = trip['headSignS']
-	    outtrip['datetime'] = dep['depTime']
-	    outtrip['type'] = routesdata[trip['rID']]['type']
-	    outtrip['route'] = route['rNameS']
-	    outtrip['routetext'] = route['rNameL']
-	    outtrip['carrier'] = carrierdata[route['op']]
-	    foroutput.append(outtrip)
+	    noshow = 0
 	  elif weekday != '':
 	    if weekday[0][today] == 1:
-	      outtrip = {}
-	      outtrip['direction'] = trip['headSign']
-	      outtrip['no'] = trip['headSignS']
-	      outtrip['datetime'] = dep['depTime']
-	      outtrip['type'] = routesdata[trip['rID']]['type']
-	      outtrip['route'] = route['rNameS']
-	      outtrip['routetext'] = route['rNameL']
-	      outtrip['carrier'] = carrierdata[route['op']]
-	      foroutput.append(outtrip)
+	      noshow = 0
 	      
+	if noshow == 0:
+	   outtrip = {}
+	   outtrip['direction'] = trip['headSign']
+	   outtrip['no'] = trip['headSignS']
+	   outtrip['datetime'] = dep['depTime']
+	   outtrip['type'] = routesdata[trip['rID']]['type']
+	   outtrip['route'] = route['rNameS']
+	   outtrip['routetext'] = route['rNameL']
+	   outtrip['carrier'] = carrierdata[route['op']]
+	   foroutput.append(outtrip)
     print  json.dumps(foroutput)     
     dt = datetime.now()
     print dt.microsecond-start
