@@ -3,6 +3,7 @@
 from datetime import datetime
 import time
 import json
+import gc
 
 # names:a
 weekdayname = {}
@@ -27,6 +28,7 @@ for carrier in carriers:
     carrierdata[parts[0]] = parts[1]
 carriers.close()
 
+'''
 # Get times:
 deps = open('../sweden/stop_times.txt', 'r')
 depsbystop = {}
@@ -44,9 +46,16 @@ for dep in deps:
     depdata['arrTime'] = parts[1]
     depdata['depTime'] = parts[2]
     depdata['seq'] = parts[4]
-    
     depsbystop[stop].append(depdata);
 deps.close()
+
+for (stop, data) in depsbystop.items():
+    f = open('stop/'+stop+'.json','w')
+    f.write(json.dumps(data)) # python will convert \n to os.linesep
+    f.close()
+'''
+
+depsbystop = {}
 
 # Get trip info data:
 trips = open('../sweden/trips.txt', 'r')
@@ -114,6 +123,8 @@ while 1==1:
     var = raw_input("Stopid: ")
     dt = datetime.now()
     start = dt.microsecond
+    depsbystop[var] = json.loads(open('stop/'+var+'.json').read())
+
     foroutput = []
     for dep in depsbystop[var]:
 	trip = tripdata[dep['tID']]
@@ -150,6 +161,9 @@ while 1==1:
 	   outtrip['routetext'] = route['rNameL']
 	   outtrip['carrier'] = carrierdata[route['op']]
 	   foroutput.append(outtrip)
-    print  json.dumps(foroutput)     
+    
+    depsbystop = {}
+    print  json.dumps(foroutput)  
+    gc.collect()
     dt = datetime.now()
     print dt.microsecond-start
