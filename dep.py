@@ -4,6 +4,7 @@ from datetime import datetime
 import time
 import json
 import gc
+import tornado.web
 
 # names:a
 weekdayname = {}
@@ -15,12 +16,9 @@ weekdayname[4] = 'fr'
 weekdayname[5] = 'sa'
 weekdayname[6] = 'su'
 
-# info about today:
-today = weekdayname[datetime.today().weekday()]
-datetoday = time.strftime("%Y%m%d")
 
 # Get carrier:
-carriers = open('../sweden/agency.txt', 'r')
+carriers = open('sweden/agency.txt', 'r')
 carrierdata = {}
 for carrier in carriers:
     carrier = carrier.strip()
@@ -30,7 +28,7 @@ carriers.close()
 
 '''
 # Get times:
-deps = open('../sweden/stop_times.txt', 'r')
+deps = open('sweden/stop_times.txt', 'r')
 depsbystop = {}
 for dep in deps:
     depdata = {}
@@ -55,38 +53,48 @@ for (stop, data) in depsbystop.items():
     f.close()
 '''
 
-depsbystop = {}
+class tripinfo:
+  rID = ''
+  sID = ''
+  headSign = ''
+  headSignS = ''
 
 # Get trip info data:
-trips = open('../sweden/trips.txt', 'r')
+trips = open('sweden/trips.txt', 'r')
 tripdata = {}
 for trip in trips:
     trip = trip.strip()
     parts = trip.split(',')
     tripid = parts[2]
-    tripdata[tripid] = {}
-    tripdata[tripid]['rID'] = parts[0]
-    tripdata[tripid]['sID'] = parts[1]
-    tripdata[tripid]['headSign'] = parts[3]
-    tripdata[tripid]['headSignS'] = parts[4]
+    tripdata[tripid] = tripinfo()
+    tripdata[tripid].rID = parts[0]
+    tripdata[tripid].sID = parts[1]
+    tripdata[tripid].headSign = parts[3]
+    tripdata[tripid].headSignS = parts[4]
 trips.close()
 
+class routeinfo:
+   op = ''
+   rNameS = ''
+   rNameL = ''
+   vtype = ''
+
 # Get rout data
-routes = open('../sweden/routes.txt', 'r')
+routes = open('sweden/routes.txt', 'r')
 routesdata = {}
 for route in routes:
     route = route.strip()
     parts = route.split(',')
     routeid = parts[0]
-    routesdata[routeid] = {}
-    routesdata[routeid]['op'] = parts[1]
-    routesdata[routeid]['rNameS'] = parts[2]
-    routesdata[routeid]['rNameL'] = parts[3]
-    routesdata[routeid]['type'] = parts[5]
+    routesdata[routeid] = routeinfo()
+    routesdata[routeid].op = parts[1]
+    routesdata[routeid].rNameS = parts[2]
+    routesdata[routeid].rNameL = parts[3]
+    routesdata[routeid].vtype = parts[5]
 routes.close()
 
 # Get specific date data.
-dates = open('../sweden/calendar_dates.txt', 'r')
+dates = open('sweden/calendar_dates.txt', 'r')
 datesdata = {}
 for date in dates:
     date = date.strip()
@@ -96,7 +104,7 @@ for date in dates:
 dates.close()
 
 # Get weekley data.
-days = open('../sweden/calendar.txt', 'r')
+days = open('sweden/calendar.txt', 'r')
 daysdata = {}
 for day in days:
     day = day.strip()
@@ -119,51 +127,64 @@ for day in days:
     daysdata[dayid].append(data)
 days.close()
 
-while 1==1:
-    var = raw_input("Stopid: ")
-    dt = datetime.now()
-    start = dt.microsecond
-    depsbystop[var] = json.loads(open('stop/'+var+'.json').read())
+class getdep(tornado.web.RequestHandler):
+  
+    @tornado.web.asynchronous
+    def get(self, var):
+	global tripdata
+	global routesdata
+	global datesdata
+	global daysdata
+	global weekdayname
+	
+	# info about today:
+	today = weekdayname[datetime.today().weekday()]
+	datetoday = time.strftime("%Y%m%d")
 
-    foroutput = []
-    for dep in depsbystop[var]:
-	trip = tripdata[dep['tID']]
-	route = routesdata[trip['rID']]
-	try:
-	  date = datesdata[trip['sID']+datetoday]
+	depsbystop = {}
+        try:
+	  depsbystop[var] = json.loads(open('stop/'+var+'.json').read())
 	except:
-	  date = ''
+	  self.write({"Error":"stop not found"})
+	  self.finish()
+	  return
+
+	foroutput = []
+	for dep in depsbystop[var]:
+	    trip = tripdata[dep['tID']]
+	    route = routesdata[trip.rID]
+	    try:
+	      date = datesdata[trip.sID+datetoday]
+	    except:
+	      date = ''
 	
-	try:
-	  weekday = daysdata[trip['sID']]
-	except:
-	  weekday = ''
+	    try:
+	      weekday = daysdata[trip.sID]
+	    except:
+	      weekday = ''
 	
-	noshow = 1
-	if date == '' and  weekday == '':
-	  noshow = 1
-	else:
-	  if date == '2':
 	    noshow = 1
-	  elif date == '1':
-	    noshow = 0
-	  elif weekday != '':
-	    if weekday[0][today] == 1:
-	      noshow = 0
-	      
-	if noshow == 0:
-	   outtrip = {}
-	   outtrip['direction'] = trip['headSign']
-	   outtrip['no'] = trip['headSignS']
-	   outtrip['datetime'] = dep['depTime']
-	   outtrip['type'] = routesdata[trip['rID']]['type']
-	   outtrip['route'] = route['rNameS']
-	   outtrip['routetext'] = route['rNameL']
-	   outtrip['carrier'] = carrierdata[route['op']]
-	   foroutput.append(outtrip)
-    
-    depsbystop = {}
-    print  json.dumps(foroutput)  
-    gc.collect()
-    dt = datetime.now()
-    print dt.microsecond-start
+	    if date == '' and  weekday == '':
+	      noshow = 1
+	    else:
+	      if date == '2':
+		noshow = 1
+	      elif date == '1':
+		noshow = 0
+	      elif weekday != '':
+		if weekday[0][today] == 1:
+		  noshow = 0
+		
+	    if noshow == 0:
+	      outtrip = {}
+	      outtrip['direction'] = trip.headSign
+	      outtrip['no'] = trip.headSignS
+	      outtrip['datetime'] = dep['depTime']
+	      outtrip['type'] = routesdata[trip.rID].vtype
+	      outtrip['route'] = route.rNameS
+	      outtrip['routetext'] = route.rNameL
+	      outtrip['carrier'] = carrierdata[route.op]
+	      foroutput.append(outtrip)
+	depsbystop = {}
+	self.write({"trips":foroutput})
+	self.finish()
