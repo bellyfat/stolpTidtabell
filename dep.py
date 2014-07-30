@@ -6,6 +6,8 @@ import json
 import gc
 import tornado.web
 import pickle
+import gzip
+
 
 # names:a
 weekdayname = {}
@@ -17,6 +19,27 @@ weekdayname[4] = 'fr'
 weekdayname[5] = 'sa'
 weekdayname[6] = 'su'
 
+def save(object, filename, bin = 1):
+	"""Saves a compressed object to disk
+	"""
+	file = gzip.GzipFile(filename, 'wb')
+	file.write(pickle.dumps(object, bin))
+	file.close()
+
+
+def load(filename):
+	"""Loads a compressed object from disk
+	"""
+	file = gzip.GzipFile(filename, 'rb')
+	buffer = ""
+	while 1:
+		data = file.read()
+		if data == "":
+			break
+		buffer += data
+	object = pickle.loads(buffer)
+	file.close()
+	return object
 
 # Get carrier:
 carriers = open('../sweden/agency.txt', 'r')
@@ -27,6 +50,7 @@ for carrier in carriers:
     carrierdata[parts[0]] = parts[1]
 carriers.close()
 
+'''
 # Get times:
 deps = open('../sweden/stop_times.txt', 'r')
 depsbystop = {}
@@ -48,9 +72,8 @@ for dep in deps:
 deps.close()
 
 for (stop, data) in depsbystop.items():
-    f = open('stop/'+stop+'.dat','w')
-    pickle.dump(data, f) # python will convert \n to os.linesep
-    f.close()
+    save(data, 'stop/'+stop+'.dat') # python will convert \n to os.linesep
+'''
 
 class tripinfo:
   rID = ''
@@ -154,7 +177,7 @@ class getdep(tornado.web.RequestHandler):
 	
 	depsbystop = {}
         try:
-	  depsbystop[var] = pickle.loads(open('stop/'+var+'.dat').read())
+	  depsbystop[var] = load('stop/'+var+'.dat')
 	except:
 	  self.write({"Error":"stop not found"})
 	  self.finish()
