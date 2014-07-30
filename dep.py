@@ -1,10 +1,11 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
-from datetime import datetime
+import datetime
 import time
 import json
 import gc
 import tornado.web
+import pickle
 
 # names:a
 weekdayname = {}
@@ -18,7 +19,7 @@ weekdayname[6] = 'su'
 
 
 # Get carrier:
-carriers = open('sweden/agency.txt', 'r')
+carriers = open('../sweden/agency.txt', 'r')
 carrierdata = {}
 for carrier in carriers:
     carrier = carrier.strip()
@@ -26,9 +27,8 @@ for carrier in carriers:
     carrierdata[parts[0]] = parts[1]
 carriers.close()
 
-'''
 # Get times:
-deps = open('sweden/stop_times.txt', 'r')
+deps = open('../sweden/stop_times.txt', 'r')
 depsbystop = {}
 for dep in deps:
     depdata = {}
@@ -48,10 +48,9 @@ for dep in deps:
 deps.close()
 
 for (stop, data) in depsbystop.items():
-    f = open('stop/'+stop+'.json','w')
-    f.write(json.dumps(data)) # python will convert \n to os.linesep
+    f = open('stop/'+stop+'.dat','w')
+    pickle.dump(data, f) # python will convert \n to os.linesep
     f.close()
-'''
 
 class tripinfo:
   rID = ''
@@ -60,7 +59,7 @@ class tripinfo:
   headSignS = ''
 
 # Get trip info data:
-trips = open('sweden/trips.txt', 'r')
+trips = open('../sweden/trips.txt', 'r')
 tripdata = {}
 for trip in trips:
     trip = trip.strip()
@@ -80,7 +79,7 @@ class routeinfo:
    vtype = ''
 
 # Get rout data
-routes = open('sweden/routes.txt', 'r')
+routes = open('../sweden/routes.txt', 'r')
 routesdata = {}
 for route in routes:
     route = route.strip()
@@ -94,7 +93,7 @@ for route in routes:
 routes.close()
 
 # Get specific date data.
-dates = open('sweden/calendar_dates.txt', 'r')
+dates = open('../sweden/calendar_dates.txt', 'r')
 datesdata = {}
 for date in dates:
     date = date.strip()
@@ -104,7 +103,7 @@ for date in dates:
 dates.close()
 
 # Get weekley data.
-days = open('sweden/calendar.txt', 'r')
+days = open('../sweden/calendar.txt', 'r')
 daysdata = {}
 for day in days:
     day = day.strip()
@@ -134,16 +133,28 @@ class getdep(tornado.web.RequestHandler):
 	global tripdata
 	global routesdata
 	global datesdata
-	global daysdata
 	global weekdayname
-	
-	# info about today:
-	today = weekdayname[datetime.today().weekday()]
-	datetoday = time.strftime("%Y%m%d")
 
+	
+	# Get time same before and after:
+	yesterdaysec = datetime.datetime.fromtimestamp(time.time()-86400)
+	todaysec = datetime.datetime.fromtimestamp(time.time())
+	tomorrowsec = datetime.datetime.fromtimestamp(time.time()+86400)
+	
+	# Weekday:
+	yesterday = weekdayname[yesterdaysec.weekday()]
+	today = weekdayname[todaysec.weekday()]
+	tomorrow = weekdayname[tomorrowsec.weekday()]
+	
+	# Get date of today
+	dateyesterday = yesterdaysec.strftime("%Y%m%d")
+	datetoday = todaysec.strftime("%Y%m%d")
+	datetomorrow = tomorrowsec.strftime("%Y%m%d")
+	realdatetoday = todaysec.strftime("%Y-%m-%d")
+	
 	depsbystop = {}
         try:
-	  depsbystop[var] = json.loads(open('stop/'+var+'.json').read())
+	  depsbystop[var] = pickle.loads(open('stop/'+var+'.dat').read())
 	except:
 	  self.write({"Error":"stop not found"})
 	  self.finish()
@@ -153,8 +164,20 @@ class getdep(tornado.web.RequestHandler):
 	for dep in depsbystop[var]:
 	    trip = tripdata[dep['tID']]
 	    route = routesdata[trip.rID]
+	    timeparts = dep['depTime'].split(':')
+	    sectrip = int(timeparts[0])*3600+int(timeparts[1])*60+int(timeparts[2])
+	    
+	    if sectrip > 86400:
+	      usedate = dateyesterday
+	      useday = yesterday
+	      dep['depTime'] = datetime.datetime.fromtimestamp(sectrip-86400).strftime("%H:%M:%S")
+	      
+	    else:
+	      usedate = datetoday
+	      useday = today
+	    
 	    try:
-	      date = datesdata[trip.sID+datetoday]
+	      date = datesdata[trip.sID+usedate]
 	    except:
 	      date = ''
 	
@@ -172,19 +195,21 @@ class getdep(tornado.web.RequestHandler):
 	      elif date == '1':
 		noshow = 0
 	      elif weekday != '':
-		if weekday[0][today] == 1:
+		if weekday[0][useday] == 1:
 		  noshow = 0
 		
 	    if noshow == 0:
 	      outtrip = {}
 	      outtrip['direction'] = trip.headSign
 	      outtrip['no'] = trip.headSignS
-	      outtrip['datetime'] = dep['depTime']
+	      outtrip['datetime'] = realdatetoday + ' ' + dep['depTime']
 	      outtrip['type'] = routesdata[trip.rID].vtype
 	      outtrip['route'] = route.rNameS
 	      outtrip['routetext'] = route.rNameL
 	      outtrip['carrier'] = carrierdata[route.op]
-	      foroutput.append(outtrip)
+	      if todaysec < datetime.datetime.strptime(outtrip['datetime'],"%Y-%m-%d %H:%M:%S"):
+		foroutput.append(outtrip)
+	      
 	depsbystop = {}
 	self.write({"trips":foroutput})
 	self.finish()
