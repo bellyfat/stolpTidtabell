@@ -19,28 +19,6 @@ weekdayname[4] = 'fr'
 weekdayname[5] = 'sa'
 weekdayname[6] = 'su'
 
-def save(object, filename, bin = 1):
-	"""Saves a compressed object to disk
-	"""
-	file = gzip.GzipFile(filename, 'wb')
-	file.write(pickle.dumps(object, bin))
-	file.close()
-
-
-def load(filename):
-	"""Loads a compressed object from disk
-	"""
-	file = gzip.GzipFile(filename, 'rb')
-	buffer = ""
-	while 1:
-		data = file.read()
-		if data == "":
-			break
-		buffer += data
-	object = pickle.loads(buffer)
-	file.close()
-	return object
-
 # Get carrier:
 carriers = open('../sweden/agency.txt', 'r')
 carrierdata = {}
@@ -49,31 +27,6 @@ for carrier in carriers:
     parts = carrier.split(',')
     carrierdata[parts[0]] = parts[1]
 carriers.close()
-
-'''
-# Get times:
-deps = open('../sweden/stop_times.txt', 'r')
-depsbystop = {}
-for dep in deps:
-    depdata = {}
-    dep = dep.strip()
-    parts = dep.split(',')
-    stop = parts[3]
-    try:
-      depsbystop[stop]
-    except:
-      depsbystop[stop] = []
-      
-    depdata['tID'] = parts[0]
-    depdata['arrTime'] = parts[1]
-    depdata['depTime'] = parts[2]
-    depdata['seq'] = parts[4]
-    depsbystop[stop].append(depdata);
-deps.close()
-
-for (stop, data) in depsbystop.items():
-    save(data, 'stop/'+stop+'.dat') # python will convert \n to os.linesep
-'''
 
 class tripinfo:
   rID = ''
@@ -175,26 +128,28 @@ class getdep(tornado.web.RequestHandler):
 	datetomorrow = tomorrowsec.strftime("%Y%m%d")
 	realdatetoday = todaysec.strftime("%Y-%m-%d")
 	
-	depsbystop = {}
+	desinstop = ""
         try:
-	  depsbystop[var] = load('stop/'+var+'.dat')
+	  desinstop = open('stop/'+var+'.csv')
 	except:
 	  self.write({"Error":"stop not found"})
 	  self.finish()
 	  return
 
 	foroutput = []
-	for dep in depsbystop[var]:
-	    trip = tripdata[dep['tID']]
+	for dep in desinstop:
+	    dep = dep.split(',')
+	    tripid = dep[0]
+	    trip = tripdata[tripid]
 	    route = routesdata[trip.rID]
-	    timeparts = dep['depTime'].split(':')
-	    sectrip = int(timeparts[0])*3600+int(timeparts[1])*60+int(timeparts[2])
+	    if dep[1] != "-":
+	      sectrip = int(dep[1])
+	    else:
+	     continue
 	    
 	    if sectrip > 86400:
 	      usedate = dateyesterday
 	      useday = yesterday
-	      dep['depTime'] = datetime.datetime.fromtimestamp(sectrip-86400).strftime("%H:%M:%S")
-	      
 	    else:
 	      usedate = datetoday
 	      useday = today
@@ -225,13 +180,12 @@ class getdep(tornado.web.RequestHandler):
 	      outtrip = {}
 	      outtrip['direction'] = trip.headSign
 	      outtrip['no'] = trip.headSignS
-	      outtrip['datetime'] = realdatetoday + ' ' + dep['depTime']
+	      outtrip['datetime'] = realdatetoday + ' ' + str(sectrip)
 	      outtrip['type'] = routesdata[trip.rID].vtype
 	      outtrip['route'] = route.rNameS
 	      outtrip['routetext'] = route.rNameL
 	      outtrip['carrier'] = carrierdata[route.op]
-	      if todaysec < datetime.datetime.strptime(outtrip['datetime'],"%Y-%m-%d %H:%M:%S"):
-		foroutput.append(outtrip)
+	      foroutput.append(outtrip)
 	      
 	depsbystop = {}
 	self.write({"trips":foroutput})
