@@ -2,11 +2,8 @@
 # -*- coding: utf-8 -*-
 import datetime
 import time
-import json
-import gc
 import tornado.web
-import pickle
-import gzip
+import tornado.httpclient
 
 
 # names:a
@@ -20,7 +17,7 @@ weekdayname[5] = 'sa'
 weekdayname[6] = 'su'
 
 # Get carrier:
-carriers = open('../sweden/agency.txt', 'r')
+carriers = open('sweden/agency.txt', 'r')
 carrierdata = {}
 for carrier in carriers:
     carrier = carrier.strip()
@@ -35,7 +32,7 @@ class tripinfo:
   headSignS = ''
 
 # Get trip info data:
-trips = open('../sweden/trips.txt', 'r')
+trips = open('sweden/trips.txt', 'r')
 tripdata = {}
 for trip in trips:
     trip = trip.strip()
@@ -55,7 +52,7 @@ class routeinfo:
    vtype = ''
 
 # Get rout data
-routes = open('../sweden/routes.txt', 'r')
+routes = open('sweden/routes.txt', 'r')
 routesdata = {}
 for route in routes:
     route = route.strip()
@@ -69,7 +66,7 @@ for route in routes:
 routes.close()
 
 # Get specific date data.
-dates = open('../sweden/calendar_dates.txt', 'r')
+dates = open('sweden/calendar_dates.txt', 'r')
 datesdata = {}
 for date in dates:
     date = date.strip()
@@ -79,7 +76,7 @@ for date in dates:
 dates.close()
 
 # Get weekley data.
-days = open('../sweden/calendar.txt', 'r')
+days = open('sweden/calendar.txt', 'r')
 daysdata = {}
 for day in days:
     day = day.strip()
@@ -129,17 +126,23 @@ class getdep(tornado.web.RequestHandler):
 	realdatetoday = todaysec.strftime("%Y-%m-%d")
 	
 	desinstop = ""
-        try:
-	  desinstop = open('stop/'+var+'.csv')
-	except:
+	
+	http_client = tornado.httpclient.HTTPClient()
+	try:
+	  response = http_client.fetch("http://thuma.github.io/stop/"+var+".csv")
+	  desinstop = response.body.split("\n")
+	except httpclient.HTTPError as e:
 	  self.write({"Error":"stop not found"})
 	  self.finish()
 	  return
-
+	http_client.close()
+	  
 	foroutput = []
 	for dep in desinstop:
 	    dep = dep.split(',')
 	    tripid = dep[0]
+	    if tripid == '':
+	      continue
 	    trip = tripdata[tripid]
 	    route = routesdata[trip.rID]
 	    if dep[1] != "-":

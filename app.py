@@ -7,10 +7,10 @@ application = tornado.web.Application([
     (r"/dep/([^/]+)", dep.getdep),
 ])
 
-def main():
-    application.listen(8080)
+def main(address):
+    application.listen(8080, address)
     tornado.ioloop.IOLoop.instance().start()
 
 if __name__ == "__main__":
-    print "run"
-    main()
+    address = "127.0.0.1"
+    main(address)
